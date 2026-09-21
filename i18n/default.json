@@ -1,0 +1,16 @@
+{
+  "config.general.title": "General",
+  "config.categories.title": "Categories",
+  "config.enable.name": "Enable screen shake",
+  "config.enable.description": "Enable restrained camera feedback.",
+  "config.strength.name": "Shake strength",
+  "config.strength.description": "Overall shake strength, from 0% to 200%.",
+  "config.mining.name": "Mining",
+  "config.mining.description": "Shake when striking or breaking stones with a pickaxe.",
+  "config.combat.name": "Combat",
+  "config.combat.description": "Shake on successful local melee hits.",
+  "config.damage.name": "Player damage",
+  "config.damage.description": "Shake when the local player takes damage.",
+  "config.explosions.name": "Explosions",
+  "config.explosions.description": "Shake for nearby explosions."
+}

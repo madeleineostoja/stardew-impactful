@@ -1,0 +1,12 @@
+bin/
+obj/
+
+# Local build and packaging output
+artifacts/
+package/
+*.zip
+
+# Editor and OS files
+.DS_Store
+.vscode/
+.idea/

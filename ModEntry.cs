@@ -7,6 +7,7 @@ using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewModdingAPI.Utilities;
 using StardewValley;
+using StardewValley.TerrainFeatures;
 
 namespace Impactful;
 
@@ -16,6 +17,8 @@ public sealed class ModEntry : Mod
 
     private readonly PerScreen<ShakeController> controllers = new(() => new ShakeController());
     private readonly PerScreen<CameraShakeRenderer> renderers = new(() => new CameraShakeRenderer());
+    private readonly PerScreen<HitStopController> hitStops = new(() => new HitStopController());
+    private readonly PerScreen<HashSet<Tree>> localTreeFalls = new(() => new HashSet<Tree>());
     internal ModConfig Config { get; private set; } = new();
 
     public override void Entry(IModHelper helper)
@@ -49,6 +52,40 @@ public sealed class ModEntry : Mod
             return;
 
         this.controllers.Value.AddImpulse(strength, durationMilliseconds, direction);
+    }
+
+    internal void RequestHitStop(int frames)
+    {
+        if (!Context.IsWorldReady || Context.IsMultiplayer || !this.Config.HitStop)
+            return;
+
+        this.hitStops.Value.Request(frames);
+    }
+
+    internal bool TryConsumeHitStopFrame()
+    {
+        if (!Context.IsWorldReady || Context.IsMultiplayer || !this.Config.HitStop)
+        {
+            this.hitStops.Value.Clear();
+            return false;
+        }
+
+        return this.hitStops.Value.TryConsumeFrame();
+    }
+
+    internal void MarkLocalTreeFall(Tree tree)
+    {
+        if (this.Config.Trees)
+            this.localTreeFalls.Value.Add(tree);
+    }
+
+    internal void TriggerTreeLanding(Tree tree)
+    {
+        if (!this.localTreeFalls.Value.Remove(tree) || !this.Config.Trees || tree.Location != Game1.currentLocation)
+            return;
+
+        var horizontal = tree.shakeLeft.Value ? -0.2f : 0.2f;
+        this.Emit(ImpactTuning.TreeFall, 90, Vector2.Normalize(new Vector2(horizontal, 1f)));
     }
 
     internal void NotifyExplosion(StardewValley.GameLocation location, Microsoft.Xna.Framework.Vector2 tileLocation, int radius)
@@ -120,6 +157,8 @@ public sealed class ModEntry : Mod
     {
         this.renderers.Value.Remove();
         this.controllers.Value.Clear();
+        this.hitStops.Value.Clear();
+        this.localTreeFalls.Value.Clear();
     }
 
     private void ImpactTest(string command, string[] args)
@@ -163,6 +202,7 @@ internal static class ImpactTuning
     public const float MeleeHit = 0.7f;
     public const float ClubHit = 1.2f;
     public const float PlayerDamage = 1.5f;
+    public const float TreeFall = 0.75f;
     public const float CherryBomb = 1.8f;
     public const float Bomb = 2.6f;
     public const float MegaBomb = 3.4f;

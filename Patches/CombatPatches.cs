@@ -49,11 +49,16 @@ internal static class CombatPatches
 {
     private static void Postfix(bool __result, bool isBomb, Farmer who, bool isProjectile)
     {
-        if (!__result || isBomb || isProjectile || !who.IsLocalPlayer || !MeleeWeaponPatches.IsResolvingLocalMelee || !ModEntry.Instance.Config.Combat)
+        if (!__result || isBomb || isProjectile || !who.IsLocalPlayer || !MeleeWeaponPatches.IsResolvingLocalMelee)
             return;
 
-        var strength = MeleeWeaponPatches.IsClubAttack ? ImpactTuning.ClubHit : ImpactTuning.MeleeHit;
-        var duration = MeleeWeaponPatches.IsClubAttack ? 90 : 60;
-        ModEntry.Instance.Emit(strength, duration, ModEntry.DirectionFromFacing(MeleeWeaponPatches.AttackFacing));
+        if (ModEntry.Instance.Config.Combat)
+        {
+            var strength = MeleeWeaponPatches.IsClubAttack ? ImpactTuning.ClubHit : ImpactTuning.MeleeHit;
+            var duration = MeleeWeaponPatches.IsClubAttack ? 90 : 60;
+            ModEntry.Instance.Emit(strength, duration, ModEntry.DirectionFromFacing(MeleeWeaponPatches.AttackFacing));
+        }
+
+        ModEntry.Instance.RequestHitStop(MeleeWeaponPatches.IsClubAttack ? 2 : 1);
     }
 }

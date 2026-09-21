@@ -5,6 +5,8 @@
   "config.enable.description": "Enable restrained camera feedback.",
   "config.strength.name": "Shake strength",
   "config.strength.description": "Overall shake strength, from 0% to 200%.",
+  "config.hit-stop.name": "Combat hit stop",
+  "config.hit-stop.description": "Briefly pause on local melee hits in single-player. This is disabled in multiplayer and split-screen.",
   "config.mining.name": "Mining",
   "config.mining.description": "Shake when striking or breaking stones with a pickaxe.",
   "config.combat.name": "Combat",
@@ -12,5 +14,7 @@
   "config.damage.name": "Player damage",
   "config.damage.description": "Shake when the local player takes damage.",
   "config.explosions.name": "Explosions",
-  "config.explosions.description": "Shake for nearby explosions."
+  "config.explosions.description": "Shake for nearby explosions.",
+  "config.trees.name": "Falling trees",
+  "config.trees.description": "Shake subtly when a wild tree felled by the local player lands."
 }

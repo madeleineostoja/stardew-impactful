@@ -6,10 +6,13 @@ Impactful adds restrained, short camera impulses to make key actions feel ground
 
 - pickaxe impacts on breakable stones and stone breaks;
 - successful local-player melee hits;
-- damage taken by the local player; and
-- nearby explosions, including explosions owned by another farmer.
+- damage taken by the local player;
+- nearby explosions, including explosions owned by another farmer; and
+- wild trees felled by the local player, when the trunk lands.
 
-Mining and combat from remote farmers do not shake your camera. In split screen, each local view has its own controller.
+Mining, combat, and falling trees from remote farmers do not shake your camera. In split screen, each local view has its own shake controller.
+
+In single-player, successful melee hits also pause the game for one update frame, or two frames for clubs. Hit stop is disabled in multiplayer and split-screen.
 
 ## Install
 
@@ -23,14 +26,16 @@ Requires Stardew Valley 1.6.15+ and SMAPI 4.4+. Extract the release ZIP into you
 {
   "EnableScreenShake": true,
   "ShakeStrength": 100,
+  "HitStop": true,
   "Mining": true,
   "Combat": true,
   "PlayerDamage": true,
-  "Explosions": true
+  "Explosions": true,
+  "Trees": true
 }
 ```
 
-`ShakeStrength` is clamped to 0–200%. Disabling shake or setting its strength to zero clears active impulses immediately.
+`ShakeStrength` is clamped to 0–200%. Disabling shake or setting its strength to zero clears active impulses immediately. `HitStop` is independent of screen shake and has no effect outside single-player.
 
 ## Test command
 
@@ -40,7 +45,9 @@ Use `impact_test [strength]` in the SMAPI console. With no argument it plays a m
 
 Impactful applies and removes additive viewport offsets during world rendering, which is intended to cooperate with camera mods. It accounts for the current viewport and output dimensions so zoom and Cinderbox render scaling remain comparable. Menus and dialogue suppress application while impulses continue to decay.
 
-Version 1 deliberately excludes forestry, resource clumps, hit-stop, rumble, particles, flashes, shaders, gameplay changes, and a general-purpose effects framework.
+Hit stop temporarily uses Stardew Valley's native single-player pause path. It is deliberately disabled in multiplayer and split-screen to avoid pausing or desynchronizing other players.
+
+Fruit trees, resource clumps, rumble, particles, flashes, shaders, other gameplay changes, and a general-purpose effects framework are out of scope.
 
 ## Build locally
 

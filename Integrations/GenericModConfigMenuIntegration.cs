@@ -29,11 +29,13 @@ public sealed class GenericModConfigMenuIntegration
         api.AddSectionTitle(this.manifest, () => this.translate("config.general.title"));
         api.AddBoolOption(this.manifest, () => this.getConfig().EnableScreenShake, value => this.getConfig().EnableScreenShake = value, () => this.translate("config.enable.name"), () => this.translate("config.enable.description"));
         api.AddNumberOption(this.manifest, () => this.getConfig().ShakeStrength, value => this.getConfig().ShakeStrength = Math.Clamp(value, 0, 200), () => this.translate("config.strength.name"), () => this.translate("config.strength.description"), 0, 200);
+        api.AddBoolOption(this.manifest, () => this.getConfig().HitStop, value => this.getConfig().HitStop = value, () => this.translate("config.hit-stop.name"), () => this.translate("config.hit-stop.description"));
         api.AddSectionTitle(this.manifest, () => this.translate("config.categories.title"));
         this.AddCategory(api, "mining", config => config.Mining, (config, value) => config.Mining = value);
         this.AddCategory(api, "combat", config => config.Combat, (config, value) => config.Combat = value);
         this.AddCategory(api, "damage", config => config.PlayerDamage, (config, value) => config.PlayerDamage = value);
         this.AddCategory(api, "explosions", config => config.Explosions, (config, value) => config.Explosions = value);
+        this.AddCategory(api, "trees", config => config.Trees, (config, value) => config.Trees = value);
     }
 
     private void AddCategory(IGenericModConfigMenuApi api, string key, Func<ModConfig, bool> get, Action<ModConfig, bool> set)

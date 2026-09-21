@@ -1,0 +1,63 @@
+name: Build and release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+      - name: Fetch Stardew Valley references
+        run: |
+          git clone https://github.com/StardewModders/mod-reference-assemblies.git "$HOME/StardewValley"
+          git -C "$HOME/StardewValley" checkout 0141355fecb8536715ecff22f99374b5e632cbed
+      - name: Restore
+        run: dotnet restore Impactful.sln -p:GamePath="$HOME/StardewValley"
+      - name: Build
+        run: dotnet build Impactful.sln --no-restore -c Release -p:GamePath="$HOME/StardewValley"
+      - name: Test
+        run: dotnet test Impactful.sln --no-build -c Release -p:GamePath="$HOME/StardewValley"
+      - name: Read manifest version
+        id: version
+        run: echo "value=$(jq -r .Version manifest.json)" >> "$GITHUB_OUTPUT"
+      - name: Stage package
+        run: |
+          mkdir -p package/Impactful/i18n
+          cp bin/Release/net6.0/Impactful.dll manifest.json README.md LICENSE package/Impactful/
+          cp i18n/default.json package/Impactful/i18n/
+          (cd package && zip -r "../Impactful-${{ steps.version.outputs.value }}.zip" Impactful)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Impactful-${{ steps.version.outputs.value }}
+          path: Impactful-${{ steps.version.outputs.value }}.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check release tag
+        run: test "$GITHUB_REF_NAME" = "v${{ needs.build.outputs.version }}"
+      - uses: actions/download-artifact@v4
+        with:
+          name: Impactful-${{ needs.build.outputs.version }}
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Impactful-${{ needs.build.outputs.version }}.zip

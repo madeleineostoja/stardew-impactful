@@ -20,18 +20,3 @@ internal static class TreeFallStartPatches
             ModEntry.Instance.MarkLocalTreeFall(__instance);
     }
 }
-
-[HarmonyPatch(typeof(Tree), nameof(Tree.tickUpdate))]
-internal static class TreeLandingPatches
-{
-    private static void Prefix(Tree __instance, ref bool __state)
-    {
-        __state = __instance.falling.Value;
-    }
-
-    private static void Postfix(Tree __instance, bool __state)
-    {
-        if (__state && !__instance.falling.Value)
-            ModEntry.Instance.TriggerTreeLanding(__instance);
-    }
-}

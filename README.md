@@ -5,7 +5,6 @@ Impactful adds restrained, short camera impulses to make key actions feel ground
 ## Triggers
 
 - ordinary rocks and large mineral clumps breaking under a pickaxe, with a slightly stronger shake for boulders, meteorites, and other large nodes;
-- artifact spots dug up with a hoe, but not ordinary dirt;
 - successful defensive-sword parries (club specials retain their vanilla shake);
 - damage taken by the local player;
 - nearby explosions, including explosions owned by another farmer; and
@@ -29,7 +28,6 @@ Requires Stardew Valley 1.6.15+ and SMAPI 4.4+. Extract the release ZIP into you
   "ShakeStrength": 100,
   "HitStop": true,
   "Mining": true,
-  "ArtifactSpots": true,
   "Combat": true,
   "PlayerDamage": true,
   "Explosions": true,

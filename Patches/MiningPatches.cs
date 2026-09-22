@@ -11,7 +11,7 @@ namespace Impactful.Patches;
 })]
 internal static class OrdinaryRockPatches
 {
-    private sealed record State(Microsoft.Xna.Framework.Vector2 Tile, StardewValley.Object Rock, int FacingDirection);
+    private readonly record struct State(Microsoft.Xna.Framework.Vector2 Tile, StardewValley.Object Rock, int FacingDirection);
 
     private static void Prefix(GameLocation location, int x, int y, Farmer who, ref State? __state)
     {
@@ -25,10 +25,10 @@ internal static class OrdinaryRockPatches
 
     private static void Postfix(GameLocation location, State? __state)
     {
-        if (__state is null || (location.Objects.TryGetValue(__state.Tile, out var remaining) && ReferenceEquals(remaining, __state.Rock)))
+        if (__state is not { } state || (location.Objects.TryGetValue(state.Tile, out var remaining) && ReferenceEquals(remaining, state.Rock)))
             return;
 
-        ModEntry.Instance.Emit(ImpactTuning.OrdinaryRockBreak, ModEntry.DirectionFromFacing(__state.FacingDirection));
+        ModEntry.Instance.Emit(ImpactTuning.OrdinaryRockBreak, ModEntry.DirectionFromFacing(state.FacingDirection));
     }
 
     private static Microsoft.Xna.Framework.Vector2 GetTargetTile(GameLocation location, int x, int y, int facingDirection)

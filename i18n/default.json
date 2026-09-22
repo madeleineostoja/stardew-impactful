@@ -9,8 +9,6 @@
   "config.hit-stop.description": "Briefly pause on local melee hits in single-player. This is disabled in multiplayer and split-screen.",
   "config.mining.name": "Rock breaks",
   "config.mining.description": "Shake when a pickaxe destroys a rock, with slightly more impact for boulders, meteorites, and other large mineral clumps.",
-  "config.artifact-spots.name": "Artifact spots",
-  "config.artifact-spots.description": "Shake when hoeing an artifact spot, but not ordinary dirt.",
   "config.combat.name": "Combat specials",
   "config.combat.description": "Shake on successful defensive-sword parries. Club specials already use Stardew Valley's native shake.",
   "config.damage.name": "Player damage",

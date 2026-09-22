@@ -88,7 +88,7 @@ public sealed class ModEntry : Mod
     internal void NotifyExplosion(StardewValley.GameLocation location, Microsoft.Xna.Framework.Vector2 tileLocation, int radius)
     {
         this.TriggerExplosion(location.NameOrUniqueName, tileLocation.X, tileLocation.Y, radius);
-        if (Context.IsMainPlayer)
+        if (Context.IsMultiplayer && Context.IsMainPlayer)
             this.Helper.Multiplayer.SendMessage(new ExplosionMessage(location.NameOrUniqueName, tileLocation.X, tileLocation.Y, radius), "Explosion");
     }
 
@@ -126,8 +126,39 @@ public sealed class ModEntry : Mod
 
     private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
     {
+        if (Context.IsWorldReady)
+            this.CheckForTreeLandings();
+
         if (!this.Config.EnableScreenShake || this.Config.ShakeStrength <= 0 || Game1.activeClickableMenu is not null || Game1.dialogueUp || Game1.currentMinigame is not null)
             this.controllers.Value.Clear();
+    }
+
+    private void CheckForTreeLandings()
+    {
+        var trees = this.localTreeFalls.Value;
+        if (!this.Config.Trees)
+        {
+            trees.Clear();
+            return;
+        }
+
+        while (true)
+        {
+            Tree? landed = null;
+            foreach (var tree in trees)
+            {
+                if (!tree.falling.Value || tree.Location != Game1.currentLocation)
+                {
+                    landed = tree;
+                    break;
+                }
+            }
+
+            if (landed is null)
+                return;
+
+            this.TriggerTreeLanding(landed);
+        }
     }
 
     internal void ApplyPendingCameraImpulse()
@@ -188,7 +219,6 @@ internal static class ImpactTuning
     // Vanilla's club special moves the viewport by roughly 28 pixels RMS at
     // 100% zoom. Keep routine impacts well below it and reserve that peak for
     // the strongest explosion.
-    public const float ArtifactSpot = 2f;
     public const float OrdinaryRockBreak = 3f;
     public const float TestImpulse = 5f;
     public const float LargeRockBreak = 5f;

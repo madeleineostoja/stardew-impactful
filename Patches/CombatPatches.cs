@@ -61,8 +61,8 @@ internal static class CombatPatches
 
         var killedMonster = __state?.Any(monster => monster.Health <= 0) == true;
         var hitStopFrames = killedMonster
-            ? MeleeWeaponPatches.IsClubAttack ? 5 : 4
-            : MeleeWeaponPatches.IsClubAttack ? 3 : 2;
+            ? MeleeWeaponPatches.IsClubAttack ? 4 : 3
+            : MeleeWeaponPatches.IsClubAttack ? 2 : 1;
         ModEntry.Instance.RequestHitStop(hitStopFrames);
     }
 }

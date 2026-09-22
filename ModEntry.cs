@@ -189,11 +189,12 @@ internal static class ImpactTuning
     // 100% zoom. Keep routine impacts well below it and reserve that peak for
     // the strongest explosion.
     public const float ArtifactSpot = 2f;
+    public const float OrdinaryRockBreak = 3f;
     public const float TestImpulse = 5f;
+    public const float LargeRockBreak = 5f;
     public const float PlayerDamage = 12f;
     public const float TreeFall = 10f;
     public const float Parry = 16f;
-    public const float LargeRockBreak = 18f;
     public const float CherryBomb = 14f;
     public const float Bomb = 23f;
     public const float MegaBomb = 28f;

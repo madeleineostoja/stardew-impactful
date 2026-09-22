@@ -4,7 +4,7 @@ Impactful adds restrained, short camera impulses to make key actions feel ground
 
 ## Triggers
 
-- large mineral clumps breaking under a pickaxe, including boulders and meteorites;
+- ordinary rocks and large mineral clumps breaking under a pickaxe, with a slightly stronger shake for boulders, meteorites, and other large nodes;
 - artifact spots dug up with a hoe, but not ordinary dirt;
 - successful defensive-sword parries (club specials retain their vanilla shake);
 - damage taken by the local player;
@@ -13,7 +13,7 @@ Impactful adds restrained, short camera impulses to make key actions feel ground
 
 Mining, combat, and falling trees from remote farmers do not shake your camera. In split screen, each local view has its own shake controller.
 
-In single-player, successful melee hits pause the game for two update frames, or three frames for clubs, without adding camera shake. Lethal hits pause for four or five frames respectively, and successful parries pause for four. Hit stop is disabled in multiplayer and split-screen.
+In single-player, successful melee hits pause the game for one update frame, or two frames for clubs, without adding camera shake. Lethal hits pause for three or four frames respectively, and successful parries pause for four. Hit stop is disabled in multiplayer and split-screen.
 
 ## Install
 
@@ -49,7 +49,7 @@ Impactful uses the same camera behavior as Stardew Valley's club special: it app
 
 Hit stop temporarily uses Stardew Valley's native single-player pause path. It is deliberately disabled in multiplayer and split-screen to avoid pausing or desynchronizing other players.
 
-Fruit trees, ordinary stones and tilled dirt, rumble, particles, flashes, shaders, other gameplay changes, and a general-purpose effects framework are out of scope.
+Fruit trees, tilled dirt, rumble, particles, flashes, shaders, other gameplay changes, and a general-purpose effects framework are out of scope.
 
 ## Build locally
 

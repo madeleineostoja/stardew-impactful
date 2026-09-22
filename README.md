@@ -4,15 +4,16 @@ Impactful adds restrained, short camera impulses to make key actions feel ground
 
 ## Triggers
 
-- pickaxe impacts on breakable stones and stone breaks;
-- successful local-player melee hits;
+- large mineral clumps breaking under a pickaxe, including boulders and meteorites;
+- artifact spots dug up with a hoe, but not ordinary dirt;
+- successful defensive-sword parries (club specials retain their vanilla shake);
 - damage taken by the local player;
 - nearby explosions, including explosions owned by another farmer; and
 - wild trees felled by the local player, when the trunk lands.
 
 Mining, combat, and falling trees from remote farmers do not shake your camera. In split screen, each local view has its own shake controller.
 
-In single-player, successful melee hits also pause the game for one update frame, or two frames for clubs. Hit stop is disabled in multiplayer and split-screen.
+In single-player, successful melee hits pause the game for two update frames, or three frames for clubs, without adding camera shake. Lethal hits pause for four or five frames respectively, and successful parries pause for four. Hit stop is disabled in multiplayer and split-screen.
 
 ## Install
 
@@ -28,6 +29,7 @@ Requires Stardew Valley 1.6.15+ and SMAPI 4.4+. Extract the release ZIP into you
   "ShakeStrength": 100,
   "HitStop": true,
   "Mining": true,
+  "ArtifactSpots": true,
   "Combat": true,
   "PlayerDamage": true,
   "Explosions": true,
@@ -39,15 +41,15 @@ Requires Stardew Valley 1.6.15+ and SMAPI 4.4+. Extract the release ZIP into you
 
 ## Test command
 
-Use `impact_test [strength]` in the SMAPI console. With no argument it plays a medium impulse; a positive value up to 6 requests that many base screen pixels. It obeys the global enabled and strength settings, but not category switches.
+Use `impactful_test [strength]` in the SMAPI console. With no argument it plays a small test impulse; a positive value up to 28 requests that many viewport pixels. For comparison, 28 is approximately the RMS displacement of Stardew Valley's vanilla club special at 100% zoom. The command obeys the global enabled and strength settings, but not category switches.
 
 ## Compatibility and scope
 
-Impactful applies and removes additive viewport offsets during world rendering, which is intended to cooperate with camera mods. It accounts for the current viewport and output dimensions so zoom and Cinderbox render scaling remain comparable. Menus and dialogue suppress application while impulses continue to decay.
+Impactful uses the same camera behavior as Stardew Valley's club special: it applies a one-time additive viewport kick immediately before the native camera update, then leaves the normal interpolation to attenuate, overshoot, and settle naturally. Menus and dialogue suppress queued impulses. Camera mods which replace Stardew Valley's viewport interpolation may change the settling behavior.
 
 Hit stop temporarily uses Stardew Valley's native single-player pause path. It is deliberately disabled in multiplayer and split-screen to avoid pausing or desynchronizing other players.
 
-Fruit trees, resource clumps, rumble, particles, flashes, shaders, other gameplay changes, and a general-purpose effects framework are out of scope.
+Fruit trees, ordinary stones and tilled dirt, rumble, particles, flashes, shaders, other gameplay changes, and a general-purpose effects framework are out of scope.
 
 ## Build locally
 

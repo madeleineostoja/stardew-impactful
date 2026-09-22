@@ -7,18 +7,17 @@ namespace Impactful.Tests;
 public sealed class ShakeControllerTests
 {
     [Fact]
-    public void ImpulseKicksRecoversAndSettles()
+    public void ImpulseIsConsumedExactlyOnceWithLateralMovement()
     {
         var controller = new ShakeController();
-        controller.AddImpulse(2, 100, Vector2.UnitX);
+        controller.AddImpulse(2, Vector2.UnitX);
 
-        controller.Advance(16, true, 100);
-        Assert.True(controller.CurrentOffset.X > 0);
-        controller.Advance(50, true, 100);
-        Assert.True(controller.CurrentOffset.X < 0);
-        controller.Advance(40, true, 100);
+        var offset = controller.ConsumeOffset(true, 100);
 
-        Assert.Equal(Vector2.Zero, controller.CurrentOffset);
+        Assert.Equal(2, offset.Length(), 3);
+        Assert.True(offset.X > 0);
+        Assert.NotEqual(0, offset.Y);
+        Assert.Equal(Vector2.Zero, controller.ConsumeOffset(true, 100));
         Assert.False(controller.IsActive);
     }
 
@@ -26,71 +25,47 @@ public sealed class ShakeControllerTests
     public void InvalidImpulseIsIgnored()
     {
         var controller = new ShakeController();
-        controller.AddImpulse(0, 20, Vector2.UnitX);
-        controller.AddImpulse(1, 0, Vector2.UnitX);
-        controller.Advance(10, true, 100);
+        controller.AddImpulse(0, Vector2.UnitX);
+        controller.AddImpulse(1, Vector2.Zero);
 
-        Assert.False(controller.IsActive);
-        Assert.Equal(Vector2.Zero, controller.CurrentOffset);
-    }
-
-    [Fact]
-    public void SameFrameImpulsesUseRmsAndOpposingDirectionsUseTheStrongestDirection()
-    {
-        var controller = new ShakeController();
-        controller.AddImpulse(3, 100, Vector2.UnitX);
-        controller.AddImpulse(4, 100, Vector2.UnitX);
-        controller.Advance(16, true, 100);
-        Assert.Equal(5, controller.CurrentOffset.X, 3);
-
-        controller.Clear();
-        controller.AddImpulse(4, 100, Vector2.UnitX);
-        controller.AddImpulse(4, 100, -Vector2.UnitX);
-        controller.Advance(16, true, 100);
-        Assert.Equal(MathF.Sqrt(32), controller.CurrentOffset.X, 3);
-        Assert.False(float.IsNaN(controller.CurrentOffset.X));
-    }
-
-    [Fact]
-    public void OverlappingImpulsesAreHardCappedAndExpire()
-    {
-        var controller = new ShakeController();
-        controller.AddImpulse(6, 100, Vector2.UnitY);
-        controller.Advance(16, true, 200);
-        controller.AddImpulse(6, 100, Vector2.UnitY);
-        controller.Advance(1, true, 200);
-
-        Assert.Equal(ShakeController.HardMaximumPixels, controller.CurrentOffset.Length(), 3);
-        controller.Advance(200, true, 200);
+        Assert.Equal(Vector2.Zero, controller.ConsumeOffset(true, 100));
         Assert.False(controller.IsActive);
     }
 
     [Fact]
-    public void MiningImpulseProducesAnIntegerViewportOffsetAtNormalFrameTime()
+    public void SameFrameImpulsesUseRmsAndOpposingDirectionsStayFinite()
     {
         var controller = new ShakeController();
-        controller.AddImpulse(ImpactTuning.MiningHit, 55, Vector2.UnitY);
-        controller.Advance(16.67f, true, 100);
+        controller.AddImpulse(3, Vector2.UnitX);
+        controller.AddImpulse(4, Vector2.UnitX);
+        Assert.Equal(5, controller.ConsumeOffset(true, 100).Length(), 3);
 
-        var offset = ShakeController.ToViewportPixels(controller.CurrentOffset, 1280, 720, 1280, 720);
-        Assert.NotEqual(0, offset.Y);
+        controller.AddImpulse(4, Vector2.UnitX);
+        controller.AddImpulse(4, -Vector2.UnitX);
+        var offset = controller.ConsumeOffset(true, 100);
+        Assert.Equal(MathF.Sqrt(32), offset.Length(), 3);
+        Assert.False(float.IsNaN(offset.X));
+        Assert.False(float.IsNaN(offset.Y));
     }
 
     [Fact]
-    public void ViewportConversionRoundsAndUsesIndependentAxes()
+    public void StrengthScalingIsHardCapped()
     {
-        Assert.Equal((2, -2), ShakeController.ToViewportPixels(new Vector2(1.5f, -1.5f), 1280, 720, 960, 480));
-        Assert.Equal((0, 0), ShakeController.ToViewportPixels(Vector2.One, 0, 720, 960, 480));
+        var controller = new ShakeController();
+        controller.AddImpulse(ShakeController.HardMaximumPixels, Vector2.UnitY);
+
+        var offset = controller.ConsumeOffset(true, 200);
+
+        Assert.Equal(ShakeController.HardMaximumPixels, offset.Length(), 3);
     }
 
     [Fact]
-    public void DisabledOrZeroStrengthClearsAllShake()
+    public void DisabledOrZeroStrengthClearsPendingShake()
     {
         var controller = new ShakeController();
-        controller.AddImpulse(2, 100, Vector2.UnitX);
-        controller.Advance(16, true, 0);
+        controller.AddImpulse(2, Vector2.UnitX);
 
+        Assert.Equal(Vector2.Zero, controller.ConsumeOffset(true, 0));
         Assert.False(controller.IsActive);
-        Assert.Equal(Vector2.Zero, controller.CurrentOffset);
     }
 }

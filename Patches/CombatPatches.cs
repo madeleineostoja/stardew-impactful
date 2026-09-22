@@ -2,6 +2,7 @@ using System.Numerics;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
 using StardewValley;
+using StardewValley.Monsters;
 using StardewValley.Tools;
 
 namespace Impactful.Patches;
@@ -47,18 +48,21 @@ internal static class MeleeWeaponPatches
 })]
 internal static class CombatPatches
 {
-    private static void Postfix(bool __result, bool isBomb, Farmer who, bool isProjectile)
+    private static void Prefix(GameLocation __instance, bool isBomb, Farmer who, bool isProjectile, ref List<Monster>? __state)
+    {
+        if (!isBomb && !isProjectile && who.IsLocalPlayer && MeleeWeaponPatches.IsResolvingLocalMelee)
+            __state = __instance.characters.OfType<Monster>().Where(monster => monster.Health > 0).ToList();
+    }
+
+    private static void Postfix(bool __result, bool isBomb, Farmer who, bool isProjectile, List<Monster>? __state)
     {
         if (!__result || isBomb || isProjectile || !who.IsLocalPlayer || !MeleeWeaponPatches.IsResolvingLocalMelee)
             return;
 
-        if (ModEntry.Instance.Config.Combat)
-        {
-            var strength = MeleeWeaponPatches.IsClubAttack ? ImpactTuning.ClubHit : ImpactTuning.MeleeHit;
-            var duration = MeleeWeaponPatches.IsClubAttack ? 90 : 60;
-            ModEntry.Instance.Emit(strength, duration, ModEntry.DirectionFromFacing(MeleeWeaponPatches.AttackFacing));
-        }
-
-        ModEntry.Instance.RequestHitStop(MeleeWeaponPatches.IsClubAttack ? 2 : 1);
+        var killedMonster = __state?.Any(monster => monster.Health <= 0) == true;
+        var hitStopFrames = killedMonster
+            ? MeleeWeaponPatches.IsClubAttack ? 5 : 4
+            : MeleeWeaponPatches.IsClubAttack ? 3 : 2;
+        ModEntry.Instance.RequestHitStop(hitStopFrames);
     }
 }

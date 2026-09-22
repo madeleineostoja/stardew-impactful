@@ -32,6 +32,7 @@ public sealed class GenericModConfigMenuIntegration
         api.AddBoolOption(this.manifest, () => this.getConfig().HitStop, value => this.getConfig().HitStop = value, () => this.translate("config.hit-stop.name"), () => this.translate("config.hit-stop.description"));
         api.AddSectionTitle(this.manifest, () => this.translate("config.categories.title"));
         this.AddCategory(api, "mining", config => config.Mining, (config, value) => config.Mining = value);
+        this.AddCategory(api, "artifact-spots", config => config.ArtifactSpots, (config, value) => config.ArtifactSpots = value);
         this.AddCategory(api, "combat", config => config.Combat, (config, value) => config.Combat = value);
         this.AddCategory(api, "damage", config => config.PlayerDamage, (config, value) => config.PlayerDamage = value);
         this.AddCategory(api, "explosions", config => config.Explosions, (config, value) => config.Explosions = value);

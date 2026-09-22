@@ -2,6 +2,7 @@ using System.Numerics;
 using HarmonyLib;
 using StardewValley;
 using StardewValley.Monsters;
+using StardewValley.Tools;
 
 namespace Impactful.Patches;
 
@@ -10,10 +11,15 @@ internal static class PlayerDamagePatches
 {
     private static readonly Random DirectionRandom = new();
 
-    private readonly record struct DamageState(int Health, bool HadDailyRevive, Vector2 Direction);
+    private readonly record struct DamageState(int Health, bool HadDailyRevive, bool WasParry, Vector2 Direction);
 
-    private static void Prefix(Farmer __instance, Monster? damager, ref DamageState __state)
+    private static void Prefix(Farmer __instance, bool overrideParry, Monster? damager, ref DamageState __state)
     {
+        var wasParry = damager is not null
+            && !damager.isInvincible()
+            && !overrideParry
+            && __instance.CurrentTool is MeleeWeapon { isOnSpecial: true } weapon
+            && weapon.type.Value == MeleeWeapon.defenseSword;
         var direction = ModEntry.DirectionFromFacing(__instance.FacingDirection);
         if (damager is not null)
         {
@@ -28,16 +34,25 @@ internal static class PlayerDamagePatches
             direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
         }
 
-        __state = new DamageState(__instance.health, __instance.hasUsedDailyRevive.Value, direction);
+        __state = new DamageState(__instance.health, __instance.hasUsedDailyRevive.Value, wasParry, direction);
     }
 
     private static void Postfix(Farmer __instance, DamageState __state)
     {
-        var lostHealth = __instance.health < __state.Health;
-        var revivedAfterDamage = !__state.HadDailyRevive && __instance.hasUsedDailyRevive.Value;
-        if (!__instance.IsLocalPlayer || !ModEntry.Instance.Config.PlayerDamage || (!lostHealth && !revivedAfterDamage))
+        if (!__instance.IsLocalPlayer)
             return;
 
-        ModEntry.Instance.Emit(ImpactTuning.PlayerDamage, 105, __state.Direction);
+        if (__state.WasParry)
+        {
+            if (ModEntry.Instance.Config.Combat)
+                ModEntry.Instance.Emit(ImpactTuning.Parry, __state.Direction);
+            ModEntry.Instance.RequestHitStop(4);
+            return;
+        }
+
+        var lostHealth = __instance.health < __state.Health;
+        var revivedAfterDamage = !__state.HadDailyRevive && __instance.hasUsedDailyRevive.Value;
+        if (ModEntry.Instance.Config.PlayerDamage && (lostHealth || revivedAfterDamage))
+            ModEntry.Instance.Emit(ImpactTuning.PlayerDamage, __state.Direction);
     }
 }

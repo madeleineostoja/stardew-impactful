@@ -16,7 +16,6 @@ public sealed class ModEntry : Mod
     internal static ModEntry Instance { get; private set; } = null!;
 
     private readonly PerScreen<ShakeController> controllers = new(() => new ShakeController());
-    private readonly PerScreen<CameraShakeRenderer> renderers = new(() => new CameraShakeRenderer());
     private readonly PerScreen<HitStopController> hitStops = new(() => new HitStopController());
     private readonly PerScreen<HashSet<Tree>> localTreeFalls = new(() => new HashSet<Tree>());
     internal ModConfig Config { get; private set; } = new();
@@ -39,19 +38,17 @@ public sealed class ModEntry : Mod
         helper.Events.Multiplayer.ModMessageReceived += this.OnModMessageReceived;
         helper.Events.GameLoop.UpdateTicked += this.OnUpdateTicked;
         helper.Events.GameLoop.ReturnedToTitle += this.OnReturnedToTitle;
-        helper.Events.Display.RenderingWorld += this.OnRenderingWorld;
-        helper.Events.Display.RenderedWorld += this.OnRenderedWorld;
-        helper.ConsoleCommands.Add("impact_test", "Trigger an Impactful camera impulse. Usage: impact_test [strength]", this.ImpactTest);
+        helper.ConsoleCommands.Add("impactful_test", "Trigger an Impactful camera impulse. Usage: impactful_test [strength]", this.ImpactfulTest);
 
         new Harmony(this.ModManifest.UniqueID).PatchAll();
     }
 
-    internal void Emit(float strength, int durationMilliseconds, Vector2 direction)
+    internal void Emit(float strength, Vector2 direction)
     {
         if (!Context.IsWorldReady || !this.Config.EnableScreenShake || this.Config.ShakeStrength <= 0)
             return;
 
-        this.controllers.Value.AddImpulse(strength, durationMilliseconds, direction);
+        this.controllers.Value.AddImpulse(strength, direction);
     }
 
     internal void RequestHitStop(int frames)
@@ -85,7 +82,7 @@ public sealed class ModEntry : Mod
             return;
 
         var horizontal = tree.shakeLeft.Value ? -0.2f : 0.2f;
-        this.Emit(ImpactTuning.TreeFall, 90, Vector2.Normalize(new Vector2(horizontal, 1f)));
+        this.Emit(ImpactTuning.TreeFall, Vector2.Normalize(new Vector2(horizontal, 1f)));
     }
 
     internal void NotifyExplosion(StardewValley.GameLocation location, Microsoft.Xna.Framework.Vector2 tileLocation, int radius)
@@ -105,16 +102,12 @@ public sealed class ModEntry : Mod
         var playerCenter = new Microsoft.Xna.Framework.Vector2(player.GetBoundingBox().Center.X, player.GetBoundingBox().Center.Y);
         var away = new Vector2(playerCenter.X - center.X, playerCenter.Y - center.Y);
         var distanceTiles = away.Length() / 64f;
-        var maximumDistance = radius + 6f;
-        if (distanceTiles >= maximumDistance)
+        var strength = ImpactTuning.GetExplosionStrength(radius, distanceTiles);
+        if (strength <= 0)
             return;
 
         var direction = away.LengthSquared() > 0.001f ? Vector2.Normalize(away) : DirectionFromFacing(player.FacingDirection);
-        var (strength, duration) = radius <= 3
-            ? (ImpactTuning.CherryBomb, 130)
-            : radius <= 5 ? (ImpactTuning.Bomb, 175) : (ImpactTuning.MegaBomb, 220);
-        var falloff = 1f - distanceTiles / maximumDistance;
-        this.Emit(strength * falloff * falloff, duration, direction);
+        this.Emit(strength, direction);
     }
 
     private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
@@ -133,35 +126,28 @@ public sealed class ModEntry : Mod
 
     private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
     {
-        this.controllers.Value.Advance((float)Game1.currentGameTime.ElapsedGameTime.TotalMilliseconds, this.Config.EnableScreenShake, this.Config.ShakeStrength);
-    }
-
-    private void OnRenderingWorld(object? sender, RenderingWorldEventArgs e)
-    {
-        if (!this.Config.EnableScreenShake || this.Config.ShakeStrength <= 0)
-        {
-            this.renderers.Value.Remove();
+        if (!this.Config.EnableScreenShake || this.Config.ShakeStrength <= 0 || Game1.activeClickableMenu is not null || Game1.dialogueUp || Game1.currentMinigame is not null)
             this.controllers.Value.Clear();
-            return;
-        }
-
-        this.renderers.Value.Apply(this.controllers.Value);
     }
 
-    private void OnRenderedWorld(object? sender, RenderedWorldEventArgs e)
+    internal void ApplyPendingCameraImpulse()
     {
-        this.renderers.Value.Remove();
+        var offset = this.controllers.Value.ConsumeOffset(this.Config.EnableScreenShake, this.Config.ShakeStrength);
+        if (offset == Vector2.Zero || Game1.activeClickableMenu is not null || Game1.dialogueUp)
+            return;
+
+        Game1.viewport.X += (int)MathF.Round(offset.X, MidpointRounding.AwayFromZero);
+        Game1.viewport.Y += (int)MathF.Round(offset.Y, MidpointRounding.AwayFromZero);
     }
 
     private void OnReturnedToTitle(object? sender, ReturnedToTitleEventArgs e)
     {
-        this.renderers.Value.Remove();
         this.controllers.Value.Clear();
         this.hitStops.Value.Clear();
         this.localTreeFalls.Value.Clear();
     }
 
-    private void ImpactTest(string command, string[] args)
+    private void ImpactfulTest(string command, string[] args)
     {
         if (args.Length > 1 || (args.Length == 1 && (!float.TryParse(args[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) || parsed <= 0 || parsed > ShakeController.HardMaximumPixels)))
         {
@@ -169,9 +155,9 @@ public sealed class ModEntry : Mod
             return;
         }
 
-        var strength = args.Length == 1 ? float.Parse(args[0], CultureInfo.InvariantCulture) : 1.2f;
+        var strength = args.Length == 1 ? float.Parse(args[0], CultureInfo.InvariantCulture) : ImpactTuning.TestImpulse;
         var direction = Context.IsWorldReady ? DirectionFromFacing(Game1.player.FacingDirection) : new Vector2(0, 1);
-        this.Emit(strength, 95, direction);
+        this.Emit(strength, direction);
     }
 
     internal static Vector2 DirectionFromFacing(int facingDirection)
@@ -190,6 +176,8 @@ public sealed class ModEntry : Mod
     {
         config.Normalize();
         this.Config = config;
+        if (!config.EnableScreenShake || config.ShakeStrength <= 0)
+            this.controllers.Value.Clear();
     }
 }
 
@@ -197,13 +185,30 @@ internal readonly record struct ExplosionMessage(string LocationName, float Tile
 
 internal static class ImpactTuning
 {
-    public const float MiningHit = 0.65f;
-    public const float StoneBreak = 1.2f;
-    public const float MeleeHit = 0.7f;
-    public const float ClubHit = 1.2f;
-    public const float PlayerDamage = 1.5f;
-    public const float TreeFall = 0.75f;
-    public const float CherryBomb = 1.8f;
-    public const float Bomb = 2.6f;
-    public const float MegaBomb = 3.4f;
+    // Vanilla's club special moves the viewport by roughly 28 pixels RMS at
+    // 100% zoom. Keep routine impacts well below it and reserve that peak for
+    // the strongest explosion.
+    public const float ArtifactSpot = 2f;
+    public const float TestImpulse = 5f;
+    public const float PlayerDamage = 12f;
+    public const float TreeFall = 10f;
+    public const float Parry = 16f;
+    public const float LargeRockBreak = 18f;
+    public const float CherryBomb = 14f;
+    public const float Bomb = 23f;
+    public const float MegaBomb = 28f;
+
+    public static float GetExplosionStrength(int radius, float distanceTiles)
+    {
+        var falloffStart = radius + 1f;
+        var maximumDistance = radius + 6f;
+        if (distanceTiles >= maximumDistance)
+            return 0;
+
+        var peakStrength = radius <= 3 ? CherryBomb : radius <= 5 ? Bomb : MegaBomb;
+        if (distanceTiles <= falloffStart)
+            return peakStrength;
+
+        return peakStrength * (1f - (distanceTiles - falloffStart) / (maximumDistance - falloffStart));
+    }
 }

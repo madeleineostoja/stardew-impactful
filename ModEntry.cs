@@ -132,7 +132,7 @@ public sealed class ModEntry : Mod
 
     internal void ApplyPendingCameraImpulse()
     {
-        var offset = this.controllers.Value.ConsumeOffset(this.Config.EnableScreenShake, this.Config.ShakeStrength);
+        var offset = this.controllers.Value.ConsumeOffset(this.Config.EnableScreenShake, this.Config.ShakeStrength, Game1.viewport.Height);
         if (offset == Vector2.Zero || Game1.activeClickableMenu is not null || Game1.dialogueUp)
             return;
 
@@ -149,9 +149,9 @@ public sealed class ModEntry : Mod
 
     private void ImpactfulTest(string command, string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && (!float.TryParse(args[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) || parsed <= 0 || parsed > ShakeController.HardMaximumPixels)))
+        if (args.Length > 1 || (args.Length == 1 && (!float.TryParse(args[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) || parsed <= 0 || parsed > ShakeController.HardMaximumStrength)))
         {
-            this.Monitor.Log($"Usage: {command} [strength], where strength is greater than zero and no more than {ShakeController.HardMaximumPixels}.", LogLevel.Warn);
+            this.Monitor.Log($"Usage: {command} [strength], where strength is greater than zero and no more than {ShakeController.HardMaximumStrength}.", LogLevel.Warn);
             return;
         }
 

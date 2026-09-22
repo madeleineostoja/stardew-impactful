@@ -37,11 +37,11 @@ Requires Stardew Valley 1.6.15+ and SMAPI 4.4+. Extract the release ZIP into you
 }
 ```
 
-`ShakeStrength` is clamped to 0–200%. Disabling shake or setting its strength to zero clears active impulses immediately. `HitStop` is independent of screen shake and has no effect outside single-player.
+`ShakeStrength` is a global intensity multiplier clamped to 0–200%. Base impulses are normalized to the camera viewport, so the same setting remains comparable across resolutions and zoom levels. Disabling shake or setting its strength to zero clears active impulses immediately. `HitStop` is independent of screen shake and has no effect outside single-player.
 
 ## Test command
 
-Use `impactful_test [strength]` in the SMAPI console. With no argument it plays a small test impulse; a positive value up to 28 requests that many viewport pixels. For comparison, 28 is approximately the RMS displacement of Stardew Valley's vanilla club special at 100% zoom. The command obeys the global enabled and strength settings, but not category switches.
+Use `impactful_test [strength]` in the SMAPI console. With no argument it plays a small test impulse; a positive value up to 28 sets its relative intensity. Impulses are calibrated against a 1080-high camera viewport and scale with the current view. The command obeys the global enabled and intensity settings, but not category switches.
 
 ## Compatibility and scope
 

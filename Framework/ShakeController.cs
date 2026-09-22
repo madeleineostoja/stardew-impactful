@@ -4,7 +4,8 @@ namespace Impactful.Framework;
 
 public sealed class ShakeController
 {
-    public const float HardMaximumPixels = 28f;
+    public const float HardMaximumStrength = 28f;
+    public const int ReferenceViewportHeight = 1080;
 
     private readonly List<ShakeImpulse> pending = new(4);
     private readonly Random random = new();
@@ -20,9 +21,9 @@ public sealed class ShakeController
         this.pending.Add(impulse with { Direction = Vector2.Normalize(direction) });
     }
 
-    public Vector2 ConsumeOffset(bool enabled, int strengthPercent)
+    public Vector2 ConsumeOffset(bool enabled, int strengthPercent, int viewportHeight)
     {
-        if (!enabled || strengthPercent <= 0)
+        if (!enabled || strengthPercent <= 0 || viewportHeight <= 0)
         {
             this.Clear();
             return Vector2.Zero;
@@ -51,7 +52,11 @@ public sealed class ShakeController
         direction = Vector2.Normalize(direction + perpendicular * lateralStrength);
 
         var strength = MathF.Sqrt(sumSquares) * Math.Clamp(strengthPercent, 0, 200) / 100f;
-        return direction * Math.Min(strength, HardMaximumPixels);
+        var referenceStrength = Math.Min(strength, HardMaximumStrength);
+
+        // Keep each impulse proportional to the visible camera area instead of
+        // treating its world-coordinate offset as a fixed rendered-pixel size.
+        return direction * referenceStrength * viewportHeight / ReferenceViewportHeight;
     }
 
     public void Clear()

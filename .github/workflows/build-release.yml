@@ -30,15 +30,36 @@ jobs:
         run: dotnet build Impactful.sln --no-restore -c Release -p:GamePath="$HOME/StardewValley"
       - name: Test
         run: dotnet test Impactful.sln --no-build -c Release -p:GamePath="$HOME/StardewValley"
-      - name: Read manifest version
+      - name: Read project version
         id: version
-        run: echo "value=$(jq -r .Version manifest.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          project = Path("Impactful.csproj").read_text()
+          version = re.search(r"<Version>([^<]+)</Version>", project).group(1)
+          if not re.fullmatch(r"\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?", version):
+              raise SystemExit(f"project version is not a valid release version: {version!r}")
+
+          manifest = json.loads(Path("manifest.json").read_text())
+          if manifest.get("Version") != "%ProjectVersion%":
+              raise SystemExit("manifest version must use the project version token")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"value={version}\n")
+          PY
       - name: Stage package
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
         run: |
           mkdir -p package/Impactful/i18n
-          cp bin/Release/net6.0/Impactful.dll manifest.json README.md LICENSE package/Impactful/
+          cp bin/Release/net6.0/Impactful.dll README.md LICENSE package/Impactful/
+          jq --arg version "$VERSION" '.Version = $version' manifest.json > package/Impactful/manifest.json
           cp i18n/default.json package/Impactful/i18n/
-          (cd package && zip -r "../Impactful-${{ steps.version.outputs.value }}.zip" Impactful)
+          (cd package && zip -r "../Impactful-${VERSION}.zip" Impactful)
       - uses: actions/upload-artifact@v4
         with:
           name: Impactful-${{ steps.version.outputs.value }}

@@ -1,7 +1,7 @@
 {
   "Name": "Impactful",
   "Author": "Mads",
-  "Version": "1.3.0",
+  "Version": "%ProjectVersion%",
   "License": "MIT",
   "Description": "Restrained camera feedback for impactful Stardew Valley actions.",
   "UniqueID": "heyitsmads.Impactful",

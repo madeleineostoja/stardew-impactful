@@ -63,4 +63,4 @@ dotnet test Impactful.sln -c Release -p:GamePath="$HOME/Library/Application Supp
 
 ## Release
 
-Set `manifest.json` to a new release version, commit it, and push the change to `main`. CI builds and tests the project, creates `Impactful-<version>.zip`, then publishes a matching `v<manifest version>` tag and GitHub release. Versions that already have a release are not republished.
+Set `<Version>` in `Impactful.csproj`, commit it, and push the change to `main`. The source manifest keeps a `%ProjectVersion%` token; CI substitutes the project version while packaging, creates `Impactful-<version>.zip`, then publishes a matching tag and GitHub release. Versions that already have a release are not republished.

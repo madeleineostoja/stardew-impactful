@@ -60,6 +60,28 @@ public sealed class ShakeControllerTests
     }
 
     [Fact]
+    public void BurstDoesNotAllocateOrCarryStrengthIntoNextFrame()
+    {
+        var controller = new ShakeController();
+        controller.AddImpulse(1, Vector2.UnitX);
+        controller.Clear();
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 10_000; i++)
+            controller.AddImpulse(1, Vector2.UnitX);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(0, allocated);
+        Assert.Equal(ShakeController.HardMaximumPixels, controller.ConsumeOffset(true, 100).Length(), 3);
+
+        controller.AddImpulse(1, Vector2.UnitY);
+        controller.AddImpulse(1, -Vector2.UnitY);
+        var next = controller.ConsumeOffset(true, 100);
+        Assert.Equal(MathF.Sqrt(2), next.Length(), 3);
+        Assert.True(MathF.Abs(next.Y) > MathF.Abs(next.X));
+    }
+
+    [Fact]
     public void DisabledOrZeroStrengthClearsPendingShake()
     {
         var controller = new ShakeController();

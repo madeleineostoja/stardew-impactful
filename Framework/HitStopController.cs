@@ -11,6 +11,17 @@ internal sealed class HitStopController
         this.remainingFrames = Math.Max(this.remainingFrames, frames);
     }
 
+    internal void RequestDamage(int damage, bool isClubAttack)
+    {
+        if (damage > 0)
+            this.Request(isClubAttack ? 2 : 1);
+    }
+
+    internal void RequestKill(bool isClubAttack)
+    {
+        this.Request(isClubAttack ? 4 : 3);
+    }
+
     internal bool TryConsumeFrame()
     {
         if (this.remainingFrames <= 0)

@@ -18,11 +18,15 @@ public sealed class ModEntry : Mod
     private readonly PerScreen<ShakeController> controllers = new(() => new ShakeController());
     private readonly PerScreen<HitStopController> hitStops = new(() => new HitStopController());
     private readonly PerScreen<HashSet<Tree>> localTreeFalls = new(() => new HashSet<Tree>());
+    private string[] explosionModIds = null!;
     internal ModConfig Config { get; private set; } = new();
+    internal bool CanShake => this.Config.EnableScreenShake && this.Config.ShakeStrength > 0 && Context.IsWorldReady;
+    internal bool CanHitStop => this.Config.HitStop && Context.IsWorldReady && !Context.IsMultiplayer;
 
     public override void Entry(IModHelper helper)
     {
         Instance = this;
+        this.explosionModIds = new[] { this.ModManifest.UniqueID };
         try
         {
             this.Config = helper.ReadConfig<ModConfig>() ?? new ModConfig();
@@ -38,6 +42,9 @@ public sealed class ModEntry : Mod
         helper.Events.Multiplayer.ModMessageReceived += this.OnModMessageReceived;
         helper.Events.GameLoop.UpdateTicked += this.OnUpdateTicked;
         helper.Events.GameLoop.ReturnedToTitle += this.OnReturnedToTitle;
+        helper.Events.GameLoop.DayStarted += this.OnDayStarted;
+        helper.Events.Player.Warped += this.OnWarped;
+        helper.Events.World.TerrainFeatureListChanged += this.OnTerrainFeatureListChanged;
         helper.ConsoleCommands.Add("impactful_test", "Trigger an Impactful camera impulse. Usage: impactful_test [strength]", this.ImpactfulTest);
 
         new Harmony(this.ModManifest.UniqueID).PatchAll();
@@ -45,7 +52,7 @@ public sealed class ModEntry : Mod
 
     internal void Emit(float strength, Vector2 direction)
     {
-        if (!Context.IsWorldReady || !this.Config.EnableScreenShake || this.Config.ShakeStrength <= 0)
+        if (!this.CanShake)
             return;
 
         this.controllers.Value.AddImpulse(strength, direction);
@@ -53,15 +60,25 @@ public sealed class ModEntry : Mod
 
     internal void RequestHitStop(int frames)
     {
-        if (!Context.IsWorldReady || Context.IsMultiplayer || !this.Config.HitStop)
-            return;
+        if (this.CanHitStop)
+            this.hitStops.Value.Request(frames);
+    }
 
-        this.hitStops.Value.Request(frames);
+    internal void RequestMeleeDamage(int damage, bool isClubAttack)
+    {
+        if (this.CanHitStop)
+            this.hitStops.Value.RequestDamage(damage, isClubAttack);
+    }
+
+    internal void RequestMeleeKill(bool isClubAttack)
+    {
+        if (this.CanHitStop)
+            this.hitStops.Value.RequestKill(isClubAttack);
     }
 
     internal bool TryConsumeHitStopFrame()
     {
-        if (!Context.IsWorldReady || Context.IsMultiplayer || !this.Config.HitStop)
+        if (!this.CanHitStop)
         {
             this.hitStops.Value.Clear();
             return false;
@@ -72,9 +89,13 @@ public sealed class ModEntry : Mod
 
     internal void MarkLocalTreeFall(Tree tree)
     {
-        if (this.Config.Trees)
+        if (this.CanShake && this.Config.Trees && tree.Location == Game1.currentLocation)
             this.localTreeFalls.Value.Add(tree);
     }
+
+    internal bool IsTrackingTreeFall(Tree tree) => this.localTreeFalls.Value.Contains(tree);
+
+    internal void ForgetTreeFall(Tree tree) => this.localTreeFalls.Value.Remove(tree);
 
     internal void TriggerTreeLanding(Tree tree)
     {
@@ -82,31 +103,34 @@ public sealed class ModEntry : Mod
             return;
 
         var horizontal = tree.shakeLeft.Value ? -0.2f : 0.2f;
-        this.Emit(ImpactTuning.TreeFall, Vector2.Normalize(new Vector2(horizontal, 1f)));
+        this.Emit(ImpactTuning.TreeFall, new Vector2(horizontal, 1f));
     }
 
     internal void NotifyExplosion(StardewValley.GameLocation location, Microsoft.Xna.Framework.Vector2 tileLocation, int radius)
     {
         this.TriggerExplosion(location.NameOrUniqueName, tileLocation.X, tileLocation.Y, radius);
         if (Context.IsMultiplayer && Context.IsMainPlayer)
-            this.Helper.Multiplayer.SendMessage(new ExplosionMessage(location.NameOrUniqueName, tileLocation.X, tileLocation.Y, radius), "Explosion");
+            this.Helper.Multiplayer.SendMessage(new ExplosionMessage(location.NameOrUniqueName, tileLocation.X, tileLocation.Y, radius), "Explosion", modIDs: this.explosionModIds);
     }
 
     internal void TriggerExplosion(string locationName, float tileX, float tileY, int radius)
     {
+        if (!this.CanShake || !this.Config.Explosions)
+            return;
+
         var player = Game1.player;
-        if (!this.Config.Explosions || player.currentLocation?.NameOrUniqueName != locationName)
+        if (player.currentLocation?.NameOrUniqueName != locationName)
             return;
 
         var center = new Microsoft.Xna.Framework.Vector2(tileX * 64f + 32f, tileY * 64f + 32f);
-        var playerCenter = new Microsoft.Xna.Framework.Vector2(player.GetBoundingBox().Center.X, player.GetBoundingBox().Center.Y);
+        var playerCenter = player.GetBoundingBox().Center;
         var away = new Vector2(playerCenter.X - center.X, playerCenter.Y - center.Y);
         var distanceTiles = away.Length() / 64f;
         var strength = ImpactTuning.GetExplosionStrength(radius, distanceTiles);
         if (strength <= 0)
             return;
 
-        var direction = away.LengthSquared() > 0.001f ? Vector2.Normalize(away) : DirectionFromFacing(player.FacingDirection);
+        var direction = away.LengthSquared() > 0.001f ? away : DirectionFromFacing(player.FacingDirection);
         this.Emit(strength, direction);
     }
 
@@ -126,25 +150,61 @@ public sealed class ModEntry : Mod
 
     private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
     {
-        if (!this.Config.EnableScreenShake || this.Config.ShakeStrength <= 0 || Game1.activeClickableMenu is not null || Game1.dialogueUp || Game1.currentMinigame is not null)
+        if (!this.CanShake || Game1.activeClickableMenu is not null || Game1.dialogueUp || Game1.currentMinigame is not null)
             this.controllers.Value.Clear();
+        if (!this.CanShake || !this.Config.Trees)
+            this.localTreeFalls.Value.Clear();
     }
 
     internal void ApplyPendingCameraImpulse()
     {
-        var offset = this.controllers.Value.ConsumeOffset(this.Config.EnableScreenShake, this.Config.ShakeStrength);
-        if (offset == Vector2.Zero || Game1.activeClickableMenu is not null || Game1.dialogueUp)
+        if (!this.CanShake || Game1.activeClickableMenu is not null || Game1.dialogueUp || Game1.currentMinigame is not null)
+        {
+            this.controllers.Value.Clear();
+            return;
+        }
+
+        var offset = this.controllers.Value.ConsumeOffset(true, this.Config.ShakeStrength);
+        if (offset == Vector2.Zero)
             return;
 
         Game1.viewport.X += (int)MathF.Round(offset.X, MidpointRounding.AwayFromZero);
         Game1.viewport.Y += (int)MathF.Round(offset.Y, MidpointRounding.AwayFromZero);
     }
 
-    private void OnReturnedToTitle(object? sender, ReturnedToTitleEventArgs e)
+    private void OnWarped(object? sender, WarpedEventArgs e)
     {
+        if (!e.IsLocalPlayer)
+            return;
+
         this.controllers.Value.Clear();
         this.hitStops.Value.Clear();
         this.localTreeFalls.Value.Clear();
+    }
+
+    private void OnDayStarted(object? sender, DayStartedEventArgs e)
+    {
+        this.localTreeFalls.Value.Clear();
+    }
+
+    private void OnTerrainFeatureListChanged(object? sender, TerrainFeatureListChangedEventArgs e)
+    {
+        var falls = this.localTreeFalls.Value;
+        if (falls.Count == 0)
+            return;
+
+        foreach (var removed in e.Removed)
+        {
+            if (removed.Value is Tree tree)
+                falls.Remove(tree);
+        }
+    }
+
+    private void OnReturnedToTitle(object? sender, ReturnedToTitleEventArgs e)
+    {
+        this.controllers.ResetAllScreens();
+        this.hitStops.ResetAllScreens();
+        this.localTreeFalls.ResetAllScreens();
     }
 
     private void ImpactfulTest(string command, string[] args)
@@ -177,7 +237,11 @@ public sealed class ModEntry : Mod
         config.Normalize();
         this.Config = config;
         if (!config.EnableScreenShake || config.ShakeStrength <= 0)
-            this.controllers.Value.Clear();
+            this.controllers.ResetAllScreens();
+        if (!config.EnableScreenShake || config.ShakeStrength <= 0 || !config.Trees)
+            this.localTreeFalls.ResetAllScreens();
+        if (!config.HitStop)
+            this.hitStops.ResetAllScreens();
     }
 }
 

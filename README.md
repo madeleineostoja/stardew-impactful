@@ -18,6 +18,8 @@ In single-player, successful melee hits pause the game for one update frame, or 
 
 Requires Stardew Valley 1.6.15+ and SMAPI 4.4+. Extract the release ZIP into your SMAPI `Mods` folder. [Generic Mod Config Menu](https://www.nexusmods.com/stardewvalley/mods/5098) is optional; when installed, its settings are registered on game launch.
 
+In multiplayer, explosion feedback requires Impactful on the host and each client that wants it. Other locally detected effects work without the host installing the mod. The host relays explosions even if its own shake is disabled.
+
 ## Configuration
 
 `config.json` contains only these fields and defaults:
@@ -58,6 +60,17 @@ mise install
 dotnet restore Impactful.sln -p:GamePath="$HOME/Library/Application Support/Steam/steamapps/common/Stardew Valley/Contents/MacOS"
 dotnet test Impactful.sln -c Release -p:GamePath="$HOME/Library/Application Support/Steam/steamapps/common/Stardew Valley/Contents/MacOS"
 ```
+
+### In-game verification
+
+The automated tests cover shake aggregation, direction fallback, and hit-stop requests. Game-facing patches should also be checked in SMAPI:
+
+- Compare sword and club hits, kills, misses, and immune armored bugs; only successful damage should request hit stop. A defensive-sword parry should still work with player-damage shake disabled.
+- Disable shake while keeping hit stop enabled, then disable hit stop too. Repeat combat in multiplayer and split-screen; neither mode should pause.
+- Fell a tree normally, then test leaving the location mid-fall and removing a falling tree through another mod. No delayed shake should occur after returning.
+- Detonate a bomb near a farmhand with Impactful installed on both peers, including with host shake disabled. Other players' mining and tree falls should remain local to their own views.
+
+For performance comparisons, use the same dense-combat location, heavily wooded farm, and bomb chain before and after changes; compare frame time and allocations rather than average FPS alone.
 
 ## Release
 

@@ -126,44 +126,13 @@ public sealed class ModEntry : Mod
 
     private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
     {
-        if (Context.IsWorldReady)
-            this.CheckForTreeLandings();
-
         if (!this.Config.EnableScreenShake || this.Config.ShakeStrength <= 0 || Game1.activeClickableMenu is not null || Game1.dialogueUp || Game1.currentMinigame is not null)
             this.controllers.Value.Clear();
     }
 
-    private void CheckForTreeLandings()
-    {
-        var trees = this.localTreeFalls.Value;
-        if (!this.Config.Trees)
-        {
-            trees.Clear();
-            return;
-        }
-
-        while (true)
-        {
-            Tree? landed = null;
-            foreach (var tree in trees)
-            {
-                if (!tree.falling.Value || tree.Location != Game1.currentLocation)
-                {
-                    landed = tree;
-                    break;
-                }
-            }
-
-            if (landed is null)
-                return;
-
-            this.TriggerTreeLanding(landed);
-        }
-    }
-
     internal void ApplyPendingCameraImpulse()
     {
-        var offset = this.controllers.Value.ConsumeOffset(this.Config.EnableScreenShake, this.Config.ShakeStrength, Game1.viewport.Height);
+        var offset = this.controllers.Value.ConsumeOffset(this.Config.EnableScreenShake, this.Config.ShakeStrength);
         if (offset == Vector2.Zero || Game1.activeClickableMenu is not null || Game1.dialogueUp)
             return;
 
@@ -180,9 +149,9 @@ public sealed class ModEntry : Mod
 
     private void ImpactfulTest(string command, string[] args)
     {
-        if (args.Length > 1 || (args.Length == 1 && (!float.TryParse(args[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) || parsed <= 0 || parsed > ShakeController.HardMaximumStrength)))
+        if (args.Length > 1 || (args.Length == 1 && (!float.TryParse(args[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) || parsed <= 0 || parsed > ShakeController.HardMaximumPixels)))
         {
-            this.Monitor.Log($"Usage: {command} [strength], where strength is greater than zero and no more than {ShakeController.HardMaximumStrength}.", LogLevel.Warn);
+            this.Monitor.Log($"Usage: {command} [strength], where strength is greater than zero and no more than {ShakeController.HardMaximumPixels}.", LogLevel.Warn);
             return;
         }
 

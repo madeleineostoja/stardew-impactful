@@ -7,7 +7,7 @@ namespace Impactful.Patches;
 [HarmonyPatch(typeof(Game1), "Update", new[] { typeof(GameTime) })]
 internal static class HitStopPatches
 {
-    private static void Prefix(ref PauseState __state)
+    private static void Prefix(ref PauseState? __state)
     {
         if (!ModEntry.Instance.TryConsumeHitStopFrame())
             return;
@@ -18,35 +18,34 @@ internal static class HitStopPatches
         Game1.paused = true;
     }
 
-    private static void Postfix(ref PauseState __state)
+    private static void Postfix(PauseState? __state)
     {
-        RestorePauseState(ref __state);
+        RestorePauseState(__state);
     }
 
-    private static Exception? Finalizer(Exception? __exception, ref PauseState __state)
+    private static Exception? Finalizer(Exception? __exception, PauseState? __state)
     {
-        RestorePauseState(ref __state);
+        RestorePauseState(__state);
         return __exception;
     }
 
-    private static void RestorePauseState(ref PauseState state)
+    private static void RestorePauseState(PauseState? state)
     {
-        if (!state.Applied)
+        if (state is null || !state.Applied)
             return;
 
         Game1.paused = state.WasPaused;
         state.Applied = false;
     }
 
-    private struct PauseState
+    private sealed class PauseState
     {
         public PauseState(bool wasPaused)
         {
-            this.Applied = true;
             this.WasPaused = wasPaused;
         }
 
-        public bool Applied;
-        public readonly bool WasPaused;
+        public bool Applied { get; set; } = true;
+        public bool WasPaused { get; }
     }
 }

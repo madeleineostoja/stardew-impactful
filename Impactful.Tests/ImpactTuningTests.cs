@@ -7,7 +7,7 @@ public sealed class ImpactTuningTests
     [Theory]
     [InlineData(3, ImpactTuning.CherryBomb)]
     [InlineData(5, ImpactTuning.Bomb)]
-    [InlineData(6, ImpactTuning.MegaBomb)]
+    [InlineData(7, ImpactTuning.MegaBomb)]
     public void ExplosionAtCenterUsesPeakStrengthForBombSize(int radius, float expected)
     {
         Assert.Equal(expected, ImpactTuning.GetExplosionStrength(radius, 0));

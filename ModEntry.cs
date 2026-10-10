@@ -16,12 +16,12 @@ public sealed class ModEntry : Mod
     internal static ModEntry Instance { get; private set; } = null!;
 
     private readonly PerScreen<ShakeController> controllers = new(() => new ShakeController());
-    private readonly PerScreen<HitStopController> hitStops = new(() => new HitStopController());
+    private readonly PerScreen<CameraShakeRenderer> renderers = new(() => new CameraShakeRenderer());
     private readonly PerScreen<HashSet<Tree>> localTreeFalls = new(() => new HashSet<Tree>());
     private string[] explosionModIds = null!;
+    private Harmony harmony = null!;
     internal ModConfig Config { get; private set; } = new();
     internal bool CanShake => this.Config.EnableScreenShake && this.Config.ShakeStrength > 0 && Context.IsWorldReady;
-    internal bool CanHitStop => this.Config.HitStop && Context.IsWorldReady && !Context.IsMultiplayer;
 
     public override void Entry(IModHelper helper)
     {
@@ -45,9 +45,15 @@ public sealed class ModEntry : Mod
         helper.Events.GameLoop.DayStarted += this.OnDayStarted;
         helper.Events.Player.Warped += this.OnWarped;
         helper.Events.World.TerrainFeatureListChanged += this.OnTerrainFeatureListChanged;
+        helper.Events.Display.RenderingWorld += this.OnRenderingWorld;
+        helper.Events.Display.RenderedWorld += this.OnRenderedWorld;
         helper.ConsoleCommands.Add("impactful_test", "Trigger an Impactful camera impulse. Usage: impactful_test [strength]", this.ImpactfulTest);
+        helper.ConsoleCommands.Add("impactful_status", "Show Impactful's runtime settings and registered gameplay hooks.", this.ImpactfulStatus);
 
-        new Harmony(this.ModManifest.UniqueID).PatchAll();
+        this.harmony = new Harmony(this.ModManifest.UniqueID);
+        // The parameterless overload's assembly detection breaks when JIT-inlined.
+        this.harmony.PatchAll(typeof(ModEntry).Assembly);
+        this.LogPatchStatus(LogLevel.Trace);
     }
 
     internal void Emit(float strength, Vector2 direction)
@@ -56,58 +62,39 @@ public sealed class ModEntry : Mod
             return;
 
         this.controllers.Value.AddImpulse(strength, direction);
+        this.Monitor.Log($"Queued camera impulse: {strength} pixels, direction={direction}.", LogLevel.Trace);
     }
 
-    internal void RequestHitStop(int frames)
+    internal void TrackTreeFall(Tree tree, bool isLocalTool)
     {
-        if (this.CanHitStop)
-            this.hitStops.Value.Request(frames);
-    }
-
-    internal void RequestMeleeDamage(int damage, bool isClubAttack)
-    {
-        if (this.CanHitStop)
-            this.hitStops.Value.RequestDamage(damage, isClubAttack);
-    }
-
-    internal void RequestMeleeKill(bool isClubAttack)
-    {
-        if (this.CanHitStop)
-            this.hitStops.Value.RequestKill(isClubAttack);
-    }
-
-    internal bool TryConsumeHitStopFrame()
-    {
-        if (!this.CanHitStop)
-        {
-            this.hitStops.Value.Clear();
-            return false;
-        }
-
-        return this.hitStops.Value.TryConsumeFrame();
-    }
-
-    internal void MarkLocalTreeFall(Tree tree)
-    {
-        if (this.CanShake && this.Config.Trees && tree.Location == Game1.currentLocation)
+        var inCurrentLocation = tree.Location == Game1.currentLocation;
+        this.Monitor.Log($"Tree fall started at {tree.Tile}: localTool={isLocalTool}, currentLocation={inCurrentLocation}, canShake={this.CanShake}, trees={this.Config.Trees}.", LogLevel.Trace);
+        if (isLocalTool && this.CanShake && this.Config.Trees && inCurrentLocation)
             this.localTreeFalls.Value.Add(tree);
     }
 
-    internal bool IsTrackingTreeFall(Tree tree) => this.localTreeFalls.Value.Contains(tree);
-
-    internal void ForgetTreeFall(Tree tree) => this.localTreeFalls.Value.Remove(tree);
+    internal void ForgetTreeFall(Tree tree)
+    {
+        if (this.localTreeFalls.Value.Remove(tree))
+            this.Monitor.Log($"Discarded tracked tree at {tree.Tile} before a landing callback.", LogLevel.Trace);
+    }
 
     internal void TriggerTreeLanding(Tree tree)
     {
-        if (!this.localTreeFalls.Value.Remove(tree) || !this.Config.Trees || tree.Location != Game1.currentLocation)
+        var tracked = this.localTreeFalls.Value.Remove(tree);
+        var inCurrentLocation = tree.Location == Game1.currentLocation;
+        this.Monitor.Log($"Tree landed at {tree.Tile}: tracked={tracked}, currentLocation={inCurrentLocation}, canShake={this.CanShake}, trees={this.Config.Trees}.", LogLevel.Trace);
+        if (!tracked || !inCurrentLocation || !this.CanShake || !this.Config.Trees)
             return;
 
         var horizontal = tree.shakeLeft.Value ? -0.2f : 0.2f;
         this.Emit(ImpactTuning.TreeFall, new Vector2(horizontal, 1f));
+        this.Monitor.Log($"Queued tree landing impulse: {ImpactTuning.TreeFall} pixels.", LogLevel.Trace);
     }
 
     internal void NotifyExplosion(StardewValley.GameLocation location, Microsoft.Xna.Framework.Vector2 tileLocation, int radius)
     {
+        this.Monitor.Log($"Explosion detected in {location.NameOrUniqueName} at {tileLocation}, radius={radius}.", LogLevel.Trace);
         this.TriggerExplosion(location.NameOrUniqueName, tileLocation.X, tileLocation.Y, radius);
         if (Context.IsMultiplayer && Context.IsMainPlayer)
             this.Helper.Multiplayer.SendMessage(new ExplosionMessage(location.NameOrUniqueName, tileLocation.X, tileLocation.Y, radius), "Explosion", modIDs: this.explosionModIds);
@@ -116,17 +103,24 @@ public sealed class ModEntry : Mod
     internal void TriggerExplosion(string locationName, float tileX, float tileY, int radius)
     {
         if (!this.CanShake || !this.Config.Explosions)
+        {
+            this.Monitor.Log($"Explosion feedback disabled: canShake={this.CanShake}, explosions={this.Config.Explosions}.", LogLevel.Trace);
             return;
+        }
 
         var player = Game1.player;
         if (player.currentLocation?.NameOrUniqueName != locationName)
+        {
+            this.Monitor.Log($"Explosion outside current location: {locationName}.", LogLevel.Trace);
             return;
+        }
 
         var center = new Microsoft.Xna.Framework.Vector2(tileX * 64f + 32f, tileY * 64f + 32f);
         var playerCenter = player.GetBoundingBox().Center;
         var away = new Vector2(playerCenter.X - center.X, playerCenter.Y - center.Y);
         var distanceTiles = away.Length() / 64f;
         var strength = ImpactTuning.GetExplosionStrength(radius, distanceTiles);
+        this.Monitor.Log($"Explosion feedback: distance={distanceTiles:F1} tiles, strength={strength:F1} pixels.", LogLevel.Trace);
         if (strength <= 0)
             return;
 
@@ -150,26 +144,30 @@ public sealed class ModEntry : Mod
 
     private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
     {
-        if (!this.CanShake || Game1.activeClickableMenu is not null || Game1.dialogueUp || Game1.currentMinigame is not null)
-            this.controllers.Value.Clear();
+        var enabled = this.CanShake && Game1.activeClickableMenu is null && !Game1.dialogueUp && Game1.currentMinigame is null;
+        if (!enabled && this.controllers.Value.IsActive)
+            this.Monitor.Log($"Cleared shake: canShake={this.CanShake}, menu={Game1.activeClickableMenu is not null}, dialogue={Game1.dialogueUp}, minigame={Game1.currentMinigame is not null}.", LogLevel.Trace);
+        var visible = !enabled || !Game1.options.screenFlash || Game1.flashAlpha <= 0.5f;
+        this.controllers.Value.Advance((float)Game1.currentGameTime.ElapsedGameTime.TotalMilliseconds, enabled, this.Config.ShakeStrength, visible);
         if (!this.CanShake || !this.Config.Trees)
             this.localTreeFalls.Value.Clear();
     }
 
-    internal void ApplyPendingCameraImpulse()
+    private void OnRenderingWorld(object? sender, RenderingWorldEventArgs e)
     {
         if (!this.CanShake || Game1.activeClickableMenu is not null || Game1.dialogueUp || Game1.currentMinigame is not null)
         {
+            this.renderers.Value.Remove();
             this.controllers.Value.Clear();
             return;
         }
 
-        var offset = this.controllers.Value.ConsumeOffset(true, this.Config.ShakeStrength);
-        if (offset == Vector2.Zero)
-            return;
+        this.renderers.Value.Apply(this.controllers.Value.CurrentOffset);
+    }
 
-        Game1.viewport.X += (int)MathF.Round(offset.X, MidpointRounding.AwayFromZero);
-        Game1.viewport.Y += (int)MathF.Round(offset.Y, MidpointRounding.AwayFromZero);
+    private void OnRenderedWorld(object? sender, RenderedWorldEventArgs e)
+    {
+        this.renderers.Value.Remove();
     }
 
     private void OnWarped(object? sender, WarpedEventArgs e)
@@ -178,7 +176,6 @@ public sealed class ModEntry : Mod
             return;
 
         this.controllers.Value.Clear();
-        this.hitStops.Value.Clear();
         this.localTreeFalls.Value.Clear();
     }
 
@@ -196,15 +193,32 @@ public sealed class ModEntry : Mod
         foreach (var removed in e.Removed)
         {
             if (removed.Value is Tree tree)
-                falls.Remove(tree);
+                this.ForgetTreeFall(tree);
         }
     }
 
     private void OnReturnedToTitle(object? sender, ReturnedToTitleEventArgs e)
     {
+        this.renderers.Value.Remove();
+        this.renderers.ResetAllScreens();
         this.controllers.ResetAllScreens();
-        this.hitStops.ResetAllScreens();
         this.localTreeFalls.ResetAllScreens();
+    }
+
+    private void ImpactfulStatus(string command, string[] args)
+    {
+        this.Monitor.Log($"Runtime: worldReady={Context.IsWorldReady}, screen={Context.ScreenId}, canShake={this.CanShake}, menu={Game1.activeClickableMenu is not null}, dialogue={Game1.dialogueUp}, minigame={Game1.currentMinigame is not null}.", LogLevel.Info);
+        this.Monitor.Log($"Settings: strength={this.Config.ShakeStrength}%, mining={this.Config.Mining}, trees={this.Config.Trees}, combat={this.Config.Combat}, playerDamage={this.Config.PlayerDamage}, explosions={this.Config.Explosions}.", LogLevel.Info);
+        this.LogPatchStatus(LogLevel.Info);
+    }
+
+    private void LogPatchStatus(LogLevel level)
+    {
+        var methods = this.harmony.GetPatchedMethods()
+            .Select(method => $"{method.DeclaringType?.Name}.{method.Name}")
+            .OrderBy(name => name)
+            .ToArray();
+        this.Monitor.Log($"Registered {methods.Length} gameplay hooks: {string.Join(", ", methods)}.", methods.Length == 0 ? LogLevel.Error : level);
     }
 
     private void ImpactfulTest(string command, string[] args)
@@ -215,9 +229,20 @@ public sealed class ModEntry : Mod
             return;
         }
 
+        if (!this.CanShake)
+        {
+            this.Monitor.Log("Load a save and enable screen shake with strength above zero before testing.", LogLevel.Warn);
+            return;
+        }
+        if (Game1.activeClickableMenu is not null || Game1.dialogueUp || Game1.currentMinigame is not null)
+        {
+            this.Monitor.Log("Close menus, dialogue, or minigames before testing.", LogLevel.Warn);
+            return;
+        }
+
         var strength = args.Length == 1 ? float.Parse(args[0], CultureInfo.InvariantCulture) : ImpactTuning.TestImpulse;
-        var direction = Context.IsWorldReady ? DirectionFromFacing(Game1.player.FacingDirection) : new Vector2(0, 1);
-        this.Emit(strength, direction);
+        this.Emit(strength, DirectionFromFacing(Game1.player.FacingDirection));
+        this.Monitor.Log($"Queued a {strength}-pixel world-render impulse at {this.Config.ShakeStrength}% strength.", LogLevel.Info);
     }
 
     internal static Vector2 DirectionFromFacing(int facingDirection)
@@ -240,8 +265,6 @@ public sealed class ModEntry : Mod
             this.controllers.ResetAllScreens();
         if (!config.EnableScreenShake || config.ShakeStrength <= 0 || !config.Trees)
             this.localTreeFalls.ResetAllScreens();
-        if (!config.HitStop)
-            this.hitStops.ResetAllScreens();
     }
 }
 
@@ -249,17 +272,16 @@ internal readonly record struct ExplosionMessage(string LocationName, float Tile
 
 internal static class ImpactTuning
 {
-    // Vanilla's club special moves the viewport by roughly 28 pixels RMS at
-    // 100% zoom. Keep routine impacts well below it and reserve that peak for
-    // the strongest explosion.
-    public const float OrdinaryRockBreak = 3f;
+    // Strengths are world-render offsets in viewport pixels, before zoom.
+    // Keep routine impacts small and reserve the maximum for the strongest
+    // explosion.
     public const float TestImpulse = 5f;
-    public const float LargeRockBreak = 5f;
-    public const float PlayerDamage = 12f;
-    public const float TreeFall = 10f;
-    public const float Parry = 16f;
-    public const float CherryBomb = 14f;
-    public const float Bomb = 23f;
+    public const float LargeRockBreak = 8f;
+    public const float PlayerDamage = 10f;
+    public const float TreeFall = 6f;
+    public const float Parry = 14f;
+    public const float CherryBomb = 12f;
+    public const float Bomb = 20f;
     public const float MegaBomb = 28f;
 
     public static float GetExplosionStrength(int radius, float distanceTiles)

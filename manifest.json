@@ -7,5 +7,5 @@
   "UniqueID": "heyitsmads.Impactful",
   "EntryDll": "Impactful.dll",
   "MinimumApiVersion": "4.4.0",
-  "UpdateKeys": []
+  "UpdateKeys": ["Nexus:53679"]
 }

@@ -17,6 +17,8 @@ internal static class PlayerDamagePatches
     {
         if (!ModEntry.Instance.CanShake || !ModEntry.Instance.Config.PlayerDamage || !__instance.IsLocalPlayer)
             return;
+        if (BombDamagePatches.IsResolvingBombDamage && ModEntry.Instance.Config.Explosions)
+            return;
 
         Vector2? direction = damager is null ? null : ImpactDirection.WithFallback(
             new Vector2(__instance.Position.X - damager.Position.X, __instance.Position.Y - damager.Position.Y),
@@ -61,6 +63,5 @@ internal static class ParryPatches
                 ModEntry.DirectionFromFacing(who.FacingDirection));
             mod.Emit(ImpactTuning.Parry, direction);
         }
-        mod.RequestHitStop(4);
     }
 }

@@ -9,8 +9,14 @@ namespace Impactful.Patches;
 })]
 internal static class ExplosionPatches
 {
-    private static void Postfix(GameLocation __instance, Microsoft.Xna.Framework.Vector2 tileLocation, int radius)
+    private static void Prefix(int radius, ref int __state)
     {
-        ModEntry.Instance.NotifyExplosion(__instance, tileLocation, radius);
+        // explode halves its radius for the final soil pass.
+        __state = radius;
+    }
+
+    private static void Postfix(GameLocation __instance, Microsoft.Xna.Framework.Vector2 tileLocation, int __state)
+    {
+        ModEntry.Instance.NotifyExplosion(__instance, tileLocation, __state);
     }
 }

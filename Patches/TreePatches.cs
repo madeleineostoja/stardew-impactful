@@ -9,16 +9,15 @@ namespace Impactful.Patches;
 [HarmonyPatch(typeof(Tree), nameof(Tree.performToolAction), new[] { typeof(Tool), typeof(int), typeof(Vector2) })]
 internal static class TreeFallStartPatches
 {
-    private static void Prefix(Tree __instance, Tool? t, ref bool? __state)
+    private static void Prefix(Tree __instance, ref bool __state)
     {
-        if (ModEntry.Instance.CanShake && ModEntry.Instance.Config.Trees && t?.getLastFarmerToUse()?.IsLocalPlayer == true)
-            __state = __instance.falling.Value;
+        __state = __instance.falling.Value;
     }
 
-    private static void Postfix(Tree __instance, bool? __state)
+    private static void Postfix(Tree __instance, Tool? t, bool __state)
     {
-        if (__state == false && __instance.falling.Value)
-            ModEntry.Instance.MarkLocalTreeFall(__instance);
+        if (!__state && __instance.falling.Value)
+            ModEntry.Instance.TrackTreeFall(__instance, t?.getLastFarmerToUse()?.IsLocalPlayer == true);
     }
 }
 
@@ -27,7 +26,7 @@ internal static class TreeLandingPatches
 {
     private static void Prefix(Tree __instance, ref bool __state)
     {
-        __state = __instance.falling.Value && ModEntry.Instance.IsTrackingTreeFall(__instance);
+        __state = __instance.falling.Value;
     }
 
     private static void Postfix(Tree __instance, bool __result, bool __state)
